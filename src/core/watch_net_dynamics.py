@@ -6,6 +6,7 @@ import numpy as np
 
 from src.get_audio import get_stream
 from src.net.reservoir import ESN_2D
+from src.audio_process.process import AudioConverter
 
 # TODO: separate these values as environemtal ones.
 FORMAT = pyaudio.paInt16
@@ -14,18 +15,23 @@ CHUNK = 2**12
 RATE = 8192  # サンプリングレート
 FRAME_NUM = 32
 N_MELS = 80
-NET_HEIGHT = 10
-NET_WIDTH = 10
+NET_HEIGHT = 30
+NET_WIDTH = 30
+NET_ALPHA = 0.98
+NET_INPUT_SCALE = 0.2
 
 if __name__ == '__main__':
-    net = ESN_2D(height=NET_HEIGHT, width=NET_WIDTH, input_dim=N_MELS)
-
+    net = ESN_2D(height=NET_HEIGHT,
+                 width=NET_WIDTH,
+                 input_dim=N_MELS,
+                 alpha=NET_ALPHA,
+                 input_scale=NET_INPUT_SCALE)
+    audio_converter = AudioConverter(CHUNK, N_MELS, RATE)
     stream = get_stream()
-
-    mel_basis = librosa.filters.mel(RATE, n_fft=CHUNK, n_mels=N_MELS)
     mel_freqs = librosa.mel_frequencies(n_mels=N_MELS, fmax=RATE // 2)
     datas_mel = []
     cnt = 0
+
     # プロットの準備
     fig = plt.figure(figsize=(10, 6))
     gs = gridspec.GridSpec(nrows=2, ncols=2, figure=fig)
@@ -64,13 +70,13 @@ if __name__ == '__main__':
     # 音声の取得 + プロットの開始
     while True:
         data = np.frombuffer(stream.read(CHUNK), dtype=np.int16)
-        data_fft = np.abs(np.fft.fft(data) / 2**16)
-        data_fft = data_fft[:CHUNK // 2 + 1]
-        data_mel = np.log10(np.dot(mel_basis, data_fft.reshape(-1, 1)))
+        data_mel = audio_converter.convert_to_mel(data)
         datas_mel.append(data_mel.reshape(1, -1))
+
         net.step(data_mel.flatten())
         net_state_record = np.concatenate(
             [net_state_record[:, 1:], net.x[:, 0].reshape(-1, 1)], axis=1)
+        # 規定ステップごとに描画画像の更新を行う
         if cnt > FRAME_NUM and cnt % 3 == 0:
             datas_mel = datas_mel[-FRAME_NUM:]
             audio_ax.set_title(f"{cnt/RATE*CHUNK:.3f}")
@@ -80,6 +86,5 @@ if __name__ == '__main__':
                 state_graph.set_data(np.arange(FRAME_NUM),
                                      net_state_record[height_idx, :])
             plt.pause(0.001)
-
         cnt += 1
         print("cnt = ", cnt, end='\r')
