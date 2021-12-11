@@ -12,7 +12,7 @@ from src.audio_process.process import AudioConverter
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 CHUNK = 2**12
-RATE = 8192  # サンプリングレート
+RATE = 8000  # サンプリングレート
 FRAME_NUM = 32
 N_MELS = 80
 NET_HEIGHT = 30
@@ -79,7 +79,7 @@ if __name__ == '__main__':
         # 規定ステップごとに描画画像の更新を行う
         if cnt > FRAME_NUM and cnt % 3 == 0:
             datas_mel = datas_mel[-FRAME_NUM:]
-            audio_ax.set_title(f"{cnt/RATE*CHUNK:.3f}")
+            audio_ax.set_title(f"{cnt/RATE*CHUNK:.3f} (sec)")
             picture.set_data(np.concatenate(datas_mel, axis=0).T[::-1])
             net_picture.set_data(net.x)
             for height_idx, state_graph in enumerate(state_graphs):
