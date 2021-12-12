@@ -25,7 +25,7 @@ FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = 8000  # サンプリングレート
 NUM_FRAME = 32
-SHOW_STATE_DIMENSIONS = 10  # 内部状態をプロットするノードの数
+SHOW_STATE_DIMENSIONS = 9  # 内部状態をプロットするノードの数
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -74,6 +74,7 @@ if __name__ == '__main__':
                                      net_state_record[node_idx, :])
             pred_probas = net.decoder.predict(net_state_record.T)
             preds_picture.set_data(pred_probas.T)
+            print(pred_probas[:5, :])
             plt.pause(0.001)
         cnt += 1
         print("cnt = ", cnt, end='\r')

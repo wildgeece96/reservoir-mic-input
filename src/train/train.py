@@ -132,7 +132,7 @@ if __name__ == "__main__":
         network(train_input_spectrogram[:, idx])
         train_state[idx, :] = network.x_flatten
         for i in range(10):
-            network(np.zeros(N_MELS) - 10.)
+            network(np.zeros(N_MELS) - 3.)
 
     valid_state = np.zeros(
         [valid_input_spectrogram.shape[1], network.height * network.width])
@@ -140,7 +140,7 @@ if __name__ == "__main__":
         network(valid_input_spectrogram[:, idx])
         valid_state[idx, :] = network.x_flatten
         for i in range(10):
-            network(np.zeros(N_MELS) - 10.)
+            network(np.zeros(N_MELS) - 3.)
 
     regressor = Ridge(alpha=args.ridge_alpha, normalize=True)
     regressor.fit(train_state, train_label_seq.T)
