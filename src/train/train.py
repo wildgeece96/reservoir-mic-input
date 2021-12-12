@@ -33,6 +33,10 @@ parser.add_argument("--n-mels",
                     type=int,
                     default=32,
                     help="Number of dimension of mel spectrum.")
+parser.add_argument("--net-input-offset",
+                    type=float,
+                    default=4.5,
+                    help="The offset of the input to the network")
 parser.add_argument(
     "--chunk",
     type=int,
@@ -73,6 +77,7 @@ network_config = {
     "input_dim": N_MELS,
     "output_dim": N_CLASSES,
     "alpha": args.net_alpha,  # 直前の state をどれだけ残すか
+    "input_offset": args.net_input_offset
 }
 
 
@@ -138,6 +143,7 @@ if __name__ == "__main__":
     # valid_score = regressor.score(valid_state, valid_label_seq.T)
     train_score = validate_model(regressor, train_state, train_label_seq.T)
     valid_score = validate_model(regressor, valid_state, valid_label_seq.T)
+    network.set_decoder(regressor)
 
     print("Score")
     print(f"\t train: {train_score:.2f}")

@@ -17,6 +17,7 @@ class ESN_2D(object):
             input_dim=80,
             output_dim=4,
             alpha=0.8,  # 自己状態の保存の度合い
+            input_offset=4.5,
             dtype='float32',
             decoder=None):
         """ネットワークの初期か
@@ -45,6 +46,7 @@ class ESN_2D(object):
         self.width = width
         self.input_dim = input_dim
         self.output_dim = output_dim
+        self.input_offset = input_offset
         self._x = np.random.randn(width * height).astype(dtype)
 
         self.w_inter = np.random.randn(width * height,
@@ -80,11 +82,12 @@ class ESN_2D(object):
         u: ndarray. (input_dim,).
         """
         u = u.astype(self.dtype)
+        u += self.input_offset
         updated_value = self.alpha * np.dot(
             self.w_inter, self._x) + (1. - self.alpha) * np.dot(u, self.w_in)
         self._x = self.g(updated_value)
         if return_preds:
-            return self.decoder.predict(self._x)
+            return self.decoder.predict(self._x.reshape(1, -1)).flatten()
 
     @property
     def x(self):
@@ -105,7 +108,8 @@ class ESN_2D(object):
             "input_dim": self.input_dim,
             "output_dim": self.output_dim,
             "alpha": self.alpha,
-            "dtype": self.dtype
+            "dtype": self.dtype,
+            "input_offset": self.input_offset
         }
 
     def set_decoder(self, decoder: sklearn.linear_model):
@@ -124,10 +128,10 @@ class ESN_2D(object):
         for _i in range(height):
             for _j in range(width):
                 if _i == i and _j == j:
-                    distance[_i * height + _j] = 1.
+                    distance[_i * width + _j] = 1.
                 else:
-                    distance[_i * height + _j] = np.sqrt((_i - i)**2 +
-                                                         (_j - j)**2)
+                    distance[_i * width + _j] = np.sqrt((_i - i)**2 +
+                                                        (_j - j)**2)
         return distance
 
     def save(self, dir_path="./"):
@@ -164,12 +168,13 @@ class ESN_2D(object):
         dir_path : str, optional
             ネットワーク情報が保存された場所, by default "./"
         """
-        file_path = os.path.join(dir_path, "network_weights.npz")
         config_path = os.path.join(dir_path, "network_configs.json")
-        decoder_path = os.path.join(dir_path, "decoder.pkl")
         with open(config_path, "r") as f:
             config = json.load(f)
+
         loaded_network = cls(**config)
+        decoder_path = os.path.join(dir_path, "decoder.pkl")
+        file_path = os.path.join(dir_path, "network_weights.npz")
         loaded_network._load_weights(file_path)
         loaded_network._load_decoder(decoder_path)
         return loaded_network

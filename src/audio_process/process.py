@@ -14,7 +14,7 @@ class AudioConverter(object):
         """波形データをメルスペクトラムに変換する. データは (N, 1) の形式"""
         data_fft = np.abs(np.fft.fft(data) / 2**16)
         data_fft = data_fft[:self.chunk // 2 + 1]
-        return np.log10(np.dot(self.mel_basis, data_fft.reshape(-1, 1)))
+        return np.log10(np.dot(self.mel_basis, data_fft.reshape(-1, 1)) + 1e-9)
 
     def __call__(self, data: np.array) -> np.array:
         """波形データをメルスペクトラムに変換する"""
