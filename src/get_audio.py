@@ -6,12 +6,15 @@ import matplotlib.pyplot as plt
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 CHUNK = 2**12
-RATE = 22050  # サンプリングレート
+RATE = 2205
 FRAME_NUM = 128
 N_MELS = 80
 
 
-def get_stream():
+def get_stream(format: int = pyaudio.paInt16,
+               rate: int = 8000,
+               chunk_size: int = 2**12):
+    """MacBook のマイクから波形データを取得するオブジェクトを返す"""
     p = pyaudio.PyAudio()
     apiCnt = p.get_host_api_count()
     print("Host API Count: %d" % apiCnt)
@@ -25,12 +28,12 @@ def get_stream():
     audio = pyaudio.PyAudio()
     print(audio.get_device_count())
     stream = audio.open(
-        format=FORMAT,
+        format=format,
         channels=CHANNELS,
-        rate=RATE,
+        rate=rate,
         input=True,
         input_device_index=input_device_index,  # デバイスのインデックス番号
-        frames_per_buffer=CHUNK)
+        frames_per_buffer=chunk_size)
     return stream
 
 

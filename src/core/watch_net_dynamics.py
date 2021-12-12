@@ -1,3 +1,6 @@
+import os
+import argparse
+import json
 import pyaudio
 import librosa
 import matplotlib.pyplot as plt
@@ -7,84 +10,70 @@ import numpy as np
 from src.get_audio import get_stream
 from src.net.reservoir import ESN_2D
 from src.audio_process.process import AudioConverter
+from src import utils
 
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--config-file-dir",
+    type=str,
+    default="./out/1211-best-model",
+    help=
+    "The path to directory where saved model weights and audio configuration file are saved."
+)
 # TODO: separate these values as environemtal ones.
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
-CHUNK = 2**12
 RATE = 8000  # サンプリングレート
-FRAME_NUM = 32
-N_MELS = 80
-NET_HEIGHT = 30
-NET_WIDTH = 30
-NET_ALPHA = 0.98
-NET_INPUT_SCALE = 0.2
+NUM_FRAME = 32
+SHOW_STATE_DIMENSIONS = 10  # 内部状態をプロットするノードの数
 
 if __name__ == '__main__':
-    net = ESN_2D(height=NET_HEIGHT,
-                 width=NET_WIDTH,
-                 input_dim=N_MELS,
-                 alpha=NET_ALPHA,
-                 input_scale=NET_INPUT_SCALE)
-    audio_converter = AudioConverter(CHUNK, N_MELS, RATE)
-    stream = get_stream()
-    mel_freqs = librosa.mel_frequencies(n_mels=N_MELS, fmax=RATE // 2)
+    args = parser.parse_args()
+    net = ESN_2D().load(args.config_file_dir)
+    config_file_path = os.path.join(args.config_file_dir, "args.json")
+    with open(config_file_path, "r") as f:
+        config = json.load(f)
+    chunk_size = config["chunk"]
+    n_mels = config["n_mels"]
+    audio_converter = AudioConverter(chunk_size, n_mels, RATE)
+    stream = get_stream(format=FORMAT, rate=RATE, chunk_size=chunk_size)
+    mel_freqs = librosa.mel_frequencies(n_mels=n_mels, fmax=RATE // 2)
     datas_mel = []
     cnt = 0
 
-    # プロットの準備
-    fig = plt.figure(figsize=(10, 6))
-    gs = gridspec.GridSpec(nrows=2, ncols=2, figure=fig)
-
-    ## 音声の可視化部分の初期設定
-    audio_ax = fig.add_subplot(gs[0, 0])
-    zero_picture = np.zeros([N_MELS, FRAME_NUM])
-    zero_picture[:, 0] = 1.0
-    zero_picture[:, 1] = -3.0
-    picture = audio_ax.imshow(zero_picture)
-    fig.colorbar(picture, ax=audio_ax)
-    audio_ax.set_yticks(np.arange(0, N_MELS, 20))
-    audio_ax.set_yticklabels([f"{int(f)}" for f in mel_freqs[::-20]])
-    audio_ax.set_ylabel("Frequency (Hz)")
-    audio_ax.set_aspect(0.25)
-
-    ## ネットワーク活性化状況可視化部分の初期設定
-    net_ax = fig.add_subplot(gs[0, 1])
-    zero_net = np.zeros([NET_HEIGHT, NET_WIDTH])
-    zero_net[:, 0] = 1.0
-    zero_net[:, 1] = -1.0
-    net_picture = net_ax.imshow(zero_net)
-    fig.colorbar(net_picture, ax=net_ax)
-    net_ax.set_aspect(1.0)
-
-    ## ネットワークのニューロンの状態遷移可視化部分の初期設定
-    state_ax = fig.add_subplot(gs[1, :2])
-    zero_state = np.zeros([NET_HEIGHT, FRAME_NUM])
-    state_graphs = []
-    for height_idx in range(NET_HEIGHT):
-        state_graph, = state_ax.plot(zero_state[height_idx, :])
-        state_graphs.append(state_graph)
-    net_state_record = zero_state
-    state_ax.set_ylim([-1.0, 1.0])
+    audio_ax, picture, net_picture, preds_picture, state_graphs = utils.generate_realtime_plot(
+        net,
+        n_mels,
+        num_frame=NUM_FRAME,
+        mel_freqs=mel_freqs,
+        state_dimensions=SHOW_STATE_DIMENSIONS,
+        classes=["bass", "hi-hat", "snare"])
+    net_state_record = np.zeros([net.height * net.width,
+                                 NUM_FRAME])  # 最初にゼロ埋めされているネットワークのレコードを作成
 
     # 音声の取得 + プロットの開始
     while True:
-        data = np.frombuffer(stream.read(CHUNK), dtype=np.int16)
+        data = np.frombuffer(stream.read(chunk_size,
+                                         exception_on_overflow=False),
+                             dtype=np.int16)
         data_mel = audio_converter.convert_to_mel(data)
         datas_mel.append(data_mel.reshape(1, -1))
 
-        net.step(data_mel.flatten())
+        net(data_mel.flatten(), return_preds=False)
         net_state_record = np.concatenate(
-            [net_state_record[:, 1:], net.x[:, 0].reshape(-1, 1)], axis=1)
+            [net_state_record[:, 1:],
+             net.x_flatten.reshape(-1, 1)], axis=1)
         # 規定ステップごとに描画画像の更新を行う
-        if cnt > FRAME_NUM and cnt % 3 == 0:
-            datas_mel = datas_mel[-FRAME_NUM:]
-            audio_ax.set_title(f"{cnt/RATE*CHUNK:.3f} (sec)")
+        if cnt > NUM_FRAME and cnt % 2 == 0:
+            datas_mel = datas_mel[-NUM_FRAME:]
+            audio_ax.set_title(f"{cnt/RATE*chunk_size:.3f} (sec)")
             picture.set_data(np.concatenate(datas_mel, axis=0).T[::-1])
             net_picture.set_data(net.x)
-            for height_idx, state_graph in enumerate(state_graphs):
-                state_graph.set_data(np.arange(FRAME_NUM),
-                                     net_state_record[height_idx, :])
+            for node_idx, state_graph in enumerate(state_graphs):
+                state_graph.set_data(np.arange(NUM_FRAME),
+                                     net_state_record[node_idx, :])
+            pred_probas = net.decoder.predict(net_state_record.T)
+            preds_picture.set_data(pred_probas.T)
             plt.pause(0.001)
         cnt += 1
         print("cnt = ", cnt, end='\r')

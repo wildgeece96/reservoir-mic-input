@@ -37,6 +37,10 @@ parser.add_argument("--net-input-offset",
                     type=float,
                     default=4.5,
                     help="The offset of the input to the network")
+parser.add_argument("--net-sparse-rate",
+                    type=float,
+                    default=0.7,
+                    help="The extent of sparsity of the network.")
 parser.add_argument(
     "--chunk",
     type=int,
@@ -77,7 +81,8 @@ network_config = {
     "input_dim": N_MELS,
     "output_dim": N_CLASSES,
     "alpha": args.net_alpha,  # 直前の state をどれだけ残すか
-    "input_offset": args.net_input_offset
+    "input_offset": args.net_input_offset,
+    "sparse_rate": args.net_sparse_rate
 }
 
 
@@ -139,8 +144,6 @@ if __name__ == "__main__":
 
     regressor = Ridge(alpha=args.ridge_alpha, normalize=True)
     regressor.fit(train_state, train_label_seq.T)
-    # train_score = regressor.score(train_state, train_label_seq.T)
-    # valid_score = regressor.score(valid_state, valid_label_seq.T)
     train_score = validate_model(regressor, train_state, train_label_seq.T)
     valid_score = validate_model(regressor, valid_state, valid_label_seq.T)
     network.set_decoder(regressor)

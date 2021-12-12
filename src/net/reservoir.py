@@ -18,6 +18,7 @@ class ESN_2D(object):
             output_dim=4,
             alpha=0.8,  # 自己状態の保存の度合い
             input_offset=4.5,
+            sparse_rate=0.80,
             dtype='float32',
             decoder=None):
         """ネットワークの初期か
@@ -34,6 +35,10 @@ class ESN_2D(object):
             ネットワークの出力次元数, by default 4
         alpha : float, optional
             直前の state を持つ割合, input の scale は 1 - slpha となる, by default 0.8
+        input_offset : float, optional
+            音声が全て負の値のため、固定値としてどれぐらい足すかを指定する
+        sparse_rate : float, optional 
+            内部結合をスパースにどの程度するかを指定する。 1 に近いほどよりスパースになる
         dtype : str, optional
             network 内部で持つ数値データの型 by default 'float32'
         decoder : sklearn.model, optional
@@ -47,12 +52,14 @@ class ESN_2D(object):
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.input_offset = input_offset
+        self.sparse_rate = sparse_rate
         self._x = np.random.randn(width * height).astype(dtype)
 
         self.w_inter = np.random.randn(width * height,
                                        width * height) / self.scale
         self.w_inter.astype(dtype)
         self._adjust_w_inter_params(height, width)
+        self._make_w_inter_sparse()
         # echo state property を持たせるための重み調整
         self.w_inter /= np.linalg.norm(self.w_inter)
         self.w_inter *= 0.99
@@ -109,18 +116,25 @@ class ESN_2D(object):
             "output_dim": self.output_dim,
             "alpha": self.alpha,
             "dtype": self.dtype,
-            "input_offset": self.input_offset
+            "input_offset": self.input_offset,
+            "sparse_rate": self.sparse_rate
         }
 
     def set_decoder(self, decoder: sklearn.linear_model):
         self.decoder = decoder
+
+    def _make_w_inter_sparse(self):
+        """内部結合をスパースなものに変換する"""
+        prob_map = np.random.rand(*self.w_inter.shape)
+        sparse_map = np.where(prob_map > self.sparse_rate, 1., 0.)
+        self.w_inter *= sparse_map
 
     def _adjust_w_inter_params(self, height, width):
         # 格子状に並べたニューロンの結合をニューロン同士の距離にしたがって結合の強さを調節する
         for i in range(height):
             for j in range(width):
                 distance = self._calc_distance(i, j, height, width)
-                self.w_inter[i * height + j] /= distance
+                self.w_inter[i * width + j] /= distance
 
     def _calc_distance(self, i, j, height, width):
         # ニューロン同士の距離を計算する
