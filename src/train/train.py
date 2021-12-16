@@ -10,7 +10,7 @@ from sklearn.linear_model import Ridge
 
 import librosa
 
-from src.audio_process.process import AudioConverter
+from src.audio_process import AudioConverter
 from src.net.reservoir import ESN_2D
 from src.utils import make_train_dataset
 

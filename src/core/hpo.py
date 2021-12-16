@@ -4,14 +4,14 @@ import subprocess
 import itertools
 
 if __name__ == '__main__':
-    net_heights = [3, 5, 10]
-    net_widths = [3, 5, 10]
+    net_heights = [3]
+    net_widths = [3]
     net_alphas = [0.01, 0.1, 0.3]
-    net_sparse_rates = [0.7, 0.9]
-    n_mels = [16, 32, 64]
+    net_sparse_rates = [0.3, 0.7, 0.9]
+    n_mels = [16]
     chunks = [1024]
-    ridge_alphas = [0.01, 0.1]
-    input_offsets = [7.0]
+    ridge_alphas = [0.01, 0.1, 1.0]
+    input_offsets = [3.0]
     date = datetime.now().strftime("%Y%m%d-%H%M")
     os.makedirs(f"out/opt/{date}", exist_ok=True)
     cnt = 0
