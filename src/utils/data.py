@@ -3,7 +3,7 @@ from typing import Tuple
 from typing import Dict
 import numpy as np
 
-from src.audio_process.process import AudioConverter
+from src.audio_process import AudioConverter
 
 
 def make_train_dataset(
@@ -25,7 +25,7 @@ def make_train_dataset(
     
         Returns
         -------
-        Tuple[np.array, np.array]
+        Tuple[np.array: (n_mels, n_frame), np.array: (n_mels, n_frame)]
             全ての音声を結合した長いスペクトログラムとフレームごとのラベルを one-hot 形式に変換したもの
     """
     input_spectrogram_list = []
@@ -37,12 +37,13 @@ def make_train_dataset(
             start = i * chunk
             end = (i + 1) * chunk
             if i == 0:
-                converted_audio = converter(audio[:end])  # (N_MELS, 1)
+                converted_audio = converter(audio[:end])  # (n_mels, n_frame)
             else:
-                converted_audio = converter(audio[start:end])  # (N_MELS, 1)
+                converted_audio = converter(
+                    audio[start:end])  # (n_mels, n_frame)
             input_spectrogram_list.append(converted_audio)
-            label_seq_part = np.zeros([n_classes, 1])
-            label_seq_part[data_mapping[label], 0] = 1
+            label_seq_part = np.zeros([n_classes, converted_audio.shape[1]])
+            label_seq_part[data_mapping[label], :] = 1
             label_seq_list.append(label_seq_part)
 
     input_spectrogram = np.concatenate(input_spectrogram_list, axis=1)

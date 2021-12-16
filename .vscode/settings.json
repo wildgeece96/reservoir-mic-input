@@ -1,7 +1,7 @@
 {
     "python.pythonPath": "venv/bin/python",
     "python.autoComplete.extraPaths": [
-        "."
+        "./"
     ],
     "python.linting.pylintEnabled": true,
 }

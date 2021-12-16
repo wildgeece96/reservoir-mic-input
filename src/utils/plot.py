@@ -18,7 +18,7 @@ def generate_realtime_plot(net: ESN_2D, n_mels: int, num_frame: int,
     audio_ax = fig.add_subplot(gs[0, 0])
     zero_picture = np.zeros([n_mels, num_frame])
     zero_picture[:, 0] = 0.0
-    zero_picture[:, 1] = -3.0
+    zero_picture[:, 1] = -9.0
     picture = audio_ax.imshow(zero_picture)
     fig.colorbar(picture, ax=audio_ax, shrink=0.8)
     audio_ax.set_yticks(np.arange(0, n_mels, 20))
@@ -29,8 +29,8 @@ def generate_realtime_plot(net: ESN_2D, n_mels: int, num_frame: int,
     ## ネットワークの予測結果を可視化するための初期設定
     preds_ax = fig.add_subplot(gs[1, 0])
     zero_preds = np.zeros([len(classes), num_frame])
-    zero_preds[:, 1] = 3.  # 0 ~ 1 の範囲で値がプロットされる想定なので
-    zero_preds[:, 2] = -3.
+    zero_preds[:, 1] = 0.  # 0 ~ 1 の範囲で値がプロットされる想定なので
+    zero_preds[:, 2] = 1.
     preds_picture = preds_ax.imshow(zero_preds)
     preds_ax.set_yticks(list(range(len(classes))), classes)
     preds_ax.set_title("Predicted Type of audio")
