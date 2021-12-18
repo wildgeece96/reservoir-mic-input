@@ -92,10 +92,10 @@ if __name__ == '__main__':
             for node_idx, state_graph in enumerate(state_graphs):
                 state_graph.set_data(np.arange(NUM_FRAME),
                                      net_state_record[node_idx, :])
-            pred_probas = net.decoder.predict(net_state_record.T)
-            pred_probas = softmax(pred_probas)
-            preds_picture.set_data(pred_probas.T)
-            print("preds :", pred_probas[:5, :])
+            preds = net.decoder.predict(net_state_record.T).astype(int)
+            preds_one_hot = np.identity(3)[preds]
+            preds_picture.set_data(preds_one_hot.T)
+            print("preds :", preds_one_hot[:5, :])
             print("spectrogram :", data_mel[:5, :5])
             plt.pause(0.001)
         cnt += 1
