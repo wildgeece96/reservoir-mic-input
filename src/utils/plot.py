@@ -11,7 +11,7 @@ def generate_realtime_plot(net: ESN_2D, n_mels: int, num_frame: int,
                            mel_freqs: List[float], state_dimensions: int,
                            classes: List[str]):
     """音声の入力とネットワークの出力をリアルタイムで可視化するための前準備を行う関数"""
-    fig = plt.figure(figsize=(10, 6))
+    fig = plt.figure(figsize=(12, 8))
     gs = gridspec.GridSpec(nrows=3, ncols=2, figure=fig)
 
     ## 音声の可視化部分の初期設定

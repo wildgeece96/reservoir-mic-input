@@ -7,12 +7,14 @@ import numpy as np
 import glob
 import matplotlib.pyplot as plt
 from sklearn.linear_model import Ridge
+from sklearn.linear_model import LogisticRegression
 
 import librosa
 
 from src.audio_process import AudioConverter
 from src.net.reservoir import ESN_2D
-from src.utils import make_train_dataset
+from src.utils import make_audio_dataset
+from src.utils import ESNDataGenerator
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -46,6 +48,19 @@ parser.add_argument(
     type=int,
     default=2**6,
     help="The size of chunk which equals the window size in a spectrogram.")
+parser.add_argument("--n-fft",
+                    type=int,
+                    default=128,
+                    help="The sample size to pass FFT function.")
+parser.add_argument("--train-epochs",
+                    type=int,
+                    default=10,
+                    help="The epoch size for training network.")
+parser.add_argument(
+    "--train-num-concat",
+    type=int,
+    default=5,
+    help="The number of samples per input spectrogram during training.")
 parser.add_argument("--ridge-alpha",
                     type=float,
                     default=1.0,
@@ -67,7 +82,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 CHANNELS = 1
-CHUNK = 2**6
+CHUNK = args.chunk
 RATE = 8000  # サンプリングレート
 N_MELS = args.n_mels
 OVERLAP_RATE = 0.0
@@ -87,10 +102,27 @@ network_config = {
 
 
 def validate_model(model, input_state, label_seq):
-    proba = model.predict(input_state)  # (n_samples, N_CLASSES)
-    preds = np.argmax(proba, axis=1)
-    label_seq = np.argmax(label_seq, axis=1)
+    preds = model.predict(input_state)  # (n_samples, N_CLASSES)
     return np.where(preds == label_seq, 1, 0).mean()
+
+
+def generate_states(network, dataloader):
+    state = []
+    label_seq = []
+    for (spectrogram, _label_seq) in dataloader:
+        assert spectrogram.shape[1] == _label_seq.shape[
+            0], "Size of spectrogram and label_seq are different %s vs %s" % (
+                spectrogram.shape, _label_seq.shape)
+        for i in range(spectrogram.shape[1]):
+            network(spectrogram[:, i])
+            state.append(network.x_flatten.reshape(1, -1))
+        # wash out
+        for i in range(100):
+            network(np.zeros(N_MELS) - network.input_offset)
+        label_seq.append(_label_seq)
+    state = np.concatenate(state, axis=0)
+    label_seq = np.concatenate(label_seq, axis=0)
+    return (state, label_seq)
 
 
 if __name__ == "__main__":
@@ -101,7 +133,10 @@ if __name__ == "__main__":
         audio_type = path.split("/")[-1].split("_")[0]
         audio_data.append((audio, audio_type))
 
-    converter = AudioConverter(CHUNK, N_MELS, RATE)
+    converter = AudioConverter(chunk_size=CHUNK,
+                               n_fft=args.n_fft,
+                               n_mels=N_MELS,
+                               sample_rate=RATE)
 
     network = ESN_2D(**network_config)
 
@@ -115,38 +150,33 @@ if __name__ == "__main__":
     valid_idxes = shuffled_idx[:num_valid]
     train_idxes = shuffled_idx[num_valid:]
 
-    train_input_spectrogram, train_label_seq = make_train_dataset(
+    train_dataset = make_audio_dataset(
         [audio_data[idx] for idx in train_idxes],
         converter,
         N_CLASSES,
         data_mapping=CLASSES)
-    valid_input_spectrogram, valid_label_seq = make_train_dataset(
+    valid_dataset = make_audio_dataset(
         [audio_data[idx] for idx in valid_idxes],
         converter,
         N_CLASSES,
         data_mapping=CLASSES)
 
-    train_state = np.zeros(
-        [train_input_spectrogram.shape[1], network.height * network.width])
-    for idx in range(train_input_spectrogram.shape[1]):
-        network(train_input_spectrogram[:, idx])
-        train_state[idx, :] = network.x_flatten
-        for i in range(10):
-            network(np.zeros(N_MELS) - 3.)
+    train_dataloader = ESNDataGenerator(train_dataset,
+                                        epochs=args.train_epochs,
+                                        num_concat=args.train_num_concat)
+    valid_dataloader = ESNDataGenerator(valid_dataset, epochs=1, num_concat=1)
 
-    valid_state = np.zeros(
-        [valid_input_spectrogram.shape[1], network.height * network.width])
-    for idx in range(valid_input_spectrogram.shape[1]):
-        network(valid_input_spectrogram[:, idx])
-        valid_state[idx, :] = network.x_flatten
-        for i in range(10):
-            network(np.zeros(N_MELS) - 3.)
+    train_state, train_label_seq = generate_states(network, train_dataloader)
+    valid_state, valid_label_seq = generate_states(network, valid_dataloader)
 
-    regressor = Ridge(alpha=args.ridge_alpha, normalize=True)
-    regressor.fit(train_state, train_label_seq.T)
-    train_score = validate_model(regressor, train_state, train_label_seq.T)
-    valid_score = validate_model(regressor, valid_state, valid_label_seq.T)
-    network.set_decoder(regressor)
+    print(train_state.shape, train_label_seq.shape)
+    decoder = LogisticRegression(penalty="l2", max_iter=500)
+    decoder.fit(train_state, train_label_seq.T)
+    train_score = validate_model(decoder, train_state,
+                                 train_label_seq.reshape(-1, 1))
+    valid_score = validate_model(decoder, valid_state,
+                                 valid_label_seq.reshape(-1, 1))
+    network.set_decoder(decoder)
 
     print("Score")
     print(f"\t train: {train_score:.2f}")

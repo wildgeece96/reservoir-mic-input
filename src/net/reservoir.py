@@ -5,6 +5,7 @@ import numpy as np
 import joblib
 import sklearn
 from sklearn.linear_model import Ridge
+from sklearn.linear_model import LogisticRegression
 
 
 class ESN_2D(object):

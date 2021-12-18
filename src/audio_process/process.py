@@ -30,7 +30,7 @@ class AudioConverter(object):
         self.scale = 1.0
         self.sample_rate = sample_rate
         # 今回は処理を簡略化するために n_fft で余る部分については padding を行う
-        self.n_padding = n_fft - chunk_size % n_fft
+        self.n_padding = (n_fft - chunk_size % n_fft) % n_fft
         self.n_frame = (chunk_size + self.n_padding) // n_fft
 
     def convert_to_mel(self, data) -> np.array:
