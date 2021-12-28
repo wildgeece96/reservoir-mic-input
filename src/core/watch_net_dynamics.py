@@ -29,7 +29,7 @@ parser.add_argument(
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = 8000  # サンプリングレート
-NUM_FRAME = 256
+NUM_FRAME = 64
 SHOW_STATE_DIMENSIONS = 12  # 内部状態をプロットするノードの数
 
 
@@ -83,8 +83,8 @@ if __name__ == '__main__':
             minibatch_state_record,
             axis=1)
         # 規定ステップごとに描画画像の更新を行う
-        if cnt > NUM_FRAME // n_fft and cnt % 2 == 0:
-            datas_mel = datas_mel[-NUM_FRAME // n_fft:]
+        if cnt > NUM_FRAME and cnt % 2 == 0:
+            datas_mel = datas_mel[-NUM_FRAME:]
             audio_ax.set_title(f"{cnt/RATE*chunk_size:.3f} (sec)")
             picture.set_data(np.concatenate(datas_mel,
                                             axis=1)[::-1])  # (n_frame, n_mels)

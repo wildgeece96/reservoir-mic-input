@@ -169,7 +169,7 @@ if __name__ == "__main__":
     train_state, train_label_seq = generate_states(network, train_dataloader)
     valid_state, valid_label_seq = generate_states(network, valid_dataloader)
 
-    decoder = LogisticRegression(penalty="l2", max_iter=500)
+    decoder = LogisticRegression(penalty="l2", max_iter=1000)
     decoder.fit(train_state, train_label_seq.T)
     train_score = validate_model(decoder, train_state,
                                  train_label_seq.reshape(-1, 1))

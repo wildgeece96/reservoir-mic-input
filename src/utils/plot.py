@@ -11,20 +11,20 @@ def generate_realtime_plot(net: ESN_2D, n_mels: int, num_frame: int,
                            mel_freqs: List[float], state_dimensions: int,
                            classes: List[str]):
     """音声の入力とネットワークの出力をリアルタイムで可視化するための前準備を行う関数"""
-    fig = plt.figure(figsize=(12, 8))
+    fig = plt.figure(figsize=(16, 8))
     gs = gridspec.GridSpec(nrows=3, ncols=2, figure=fig)
 
     ## 音声の可視化部分の初期設定
     audio_ax = fig.add_subplot(gs[0, 0])
     zero_picture = np.zeros([n_mels, num_frame])
     zero_picture[:, 0] = 0.0
-    zero_picture[:, 1] = -9.0
+    zero_picture[:, 1] = -4.0
     picture = audio_ax.imshow(zero_picture)
     fig.colorbar(picture, ax=audio_ax, shrink=0.8)
     audio_ax.set_yticks(np.arange(0, n_mels, 20))
     audio_ax.set_yticklabels([f"{int(f)}" for f in mel_freqs[::-20]])
     audio_ax.set_ylabel("Frequency (Hz)")
-    audio_ax.set_aspect(num_frame / n_mels * 0.50)
+    audio_ax.set_aspect(num_frame / n_mels * 0.35)
 
     ## ネットワークの予測結果を可視化するための初期設定
     preds_ax = fig.add_subplot(gs[1, 0])
@@ -34,7 +34,8 @@ def generate_realtime_plot(net: ESN_2D, n_mels: int, num_frame: int,
     preds_picture = preds_ax.imshow(zero_preds)
     preds_ax.set_yticks(list(range(len(classes))), classes)
     preds_ax.set_title("Predicted Type of audio")
-    preds_ax.set_aspect(num_frame / len(classes) * 0.50)
+    preds_ax.set_aspect(num_frame / len(classes) * 0.35)
+    fig.colorbar(preds_picture, ax=preds_ax, shrink=0.8)
     # https://qiita.com/sbajsbf/items/b3ce138de83362bc45b0 を参照した
     # スペクトログラムと推論シーケンスの画像サイズを揃える
     fig.canvas.draw()
