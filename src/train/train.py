@@ -1,5 +1,10 @@
+import warnings
+
+warnings.simplefilter('ignore')
+
 import os
 import argparse
+import logging
 from typing import Tuple, List
 from collections import defaultdict
 import json
@@ -54,7 +59,7 @@ parser.add_argument("--n-fft",
                     help="The sample size to pass FFT function.")
 parser.add_argument("--train-epochs",
                     type=int,
-                    default=10,
+                    default=3,
                     help="The epoch size for training network.")
 parser.add_argument(
     "--train-num-concat",
@@ -79,26 +84,6 @@ parser.add_argument(
     help=
     "The json path which has maximum score during hyperparameter optimization."
 )
-args = parser.parse_args()
-
-CHANNELS = 1
-CHUNK = args.chunk
-RATE = 8000  # サンプリングレート
-N_MELS = args.n_mels
-OVERLAP_RATE = 0.0
-
-CLASSES = {"bass": 0, "hi-hat": 1, "snare": 2, "k-snare": 2}
-N_CLASSES = 3
-
-network_config = {
-    "height": args.net_height,
-    "width": args.net_width,
-    "input_dim": N_MELS,
-    "output_dim": N_CLASSES,
-    "alpha": args.net_alpha,  # 直前の state をどれだけ残すか
-    "input_offset": args.net_input_offset,
-    "sparse_rate": args.net_sparse_rate
-}
 
 
 def validate_model(model, input_state, label_seq):
@@ -126,12 +111,26 @@ def generate_states(network, dataloader):
 
 
 if __name__ == "__main__":
-    audio_paths = glob.glob("./data/cripped_wav/*.wav")
-    audio_data = []
-    for path in audio_paths:
-        audio, sr = librosa.load(path, sr=RATE)
-        audio_type = path.split("/")[-1].split("_")[0]
-        audio_data.append((audio, audio_type))
+    args = parser.parse_args()
+
+    CHANNELS = 1
+    CHUNK = args.chunk
+    RATE = 8000  # サンプリングレート
+    N_MELS = args.n_mels
+    OVERLAP_RATE = 0.0
+
+    CLASSES = {"bass": 0, "hi-hat": 1, "snare": 2, "k-snare": 2, "silent": 3}
+    N_CLASSES = len(CLASSES)
+
+    network_config = {
+        "height": args.net_height,
+        "width": args.net_width,
+        "input_dim": N_MELS,
+        "output_dim": N_CLASSES,
+        "alpha": args.net_alpha,  # 直前の state をどれだけ残すか
+        "input_offset": args.net_input_offset,
+        "sparse_rate": args.net_sparse_rate
+    }
 
     converter = AudioConverter(chunk_size=CHUNK,
                                n_fft=args.n_fft,
@@ -141,6 +140,13 @@ if __name__ == "__main__":
     network = ESN_2D(**network_config)
 
     # 訓練データの準備
+    audio_paths = glob.glob("./data/cripped_wav/*.wav")
+    audio_data = []
+    for path in audio_paths:
+        audio, sr = librosa.load(path, sr=RATE)
+        place, audio_type = path.split("/")[-1].split("_")[:2]
+        audio_data.append((audio, audio_type, place))
+
     valid_ratio = 0.2
     num_data = len(audio_data)
     np.random.seed(31)
@@ -168,7 +174,9 @@ if __name__ == "__main__":
 
     train_state, train_label_seq = generate_states(network, train_dataloader)
     valid_state, valid_label_seq = generate_states(network, valid_dataloader)
+    print("Size of training data: %d" % train_state.shape[0])
 
+    # decoder の学習
     decoder = LogisticRegression(penalty="l2", max_iter=1000)
     decoder.fit(train_state, train_label_seq.T)
     train_score = validate_model(decoder, train_state,
@@ -180,6 +188,8 @@ if __name__ == "__main__":
     print("Score")
     print(f"\t train: {train_score:.2f}")
     print(f"\t valid: {valid_score:.2f}")
+    print("args:\t %s" % json.dumps(vars(args), indent=4))
+
     if os.path.exists(args.score_path):
         with open(args.score_path, "r") as f:
             scores = json.load(f)
