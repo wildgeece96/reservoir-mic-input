@@ -24,30 +24,52 @@ class DataSet(object):
 
 class AudioDataSet(DataSet):
     """スペクトログラムをランダムにつなぎ合わせて取得することを想定している DataSet クラス"""
-    def __init__(self, spectrograms: List[np.array],
-                 label_seqs: List[np.array]):
+    def __init__(self,
+                 spectrograms: List[np.array],
+                 label_seqs: List[np.array],
+                 places: List[str],
+                 silent_label: str = "silent"):
         super(AudioDataSet, self).__init__(spectrograms, label_seqs)
+        self._places = places
         class_index = defaultdict(list)
         label_set = set()
         for i in range(len(self)):
-            spectrogram, label_seq = self[i]
-            label = label_seq[0]  # label_seq は同じ値が続いている想定
-            class_index[label].append(i)
+            spectrogram, label_seq, place = self[i]
+            label = int(label_seq[0])  # label_seq は同じ値が続いている想定
+            class_index[f"{label:02d}-{place}"].append(i)
             label_set.add(label)
         self._class_index = class_index
         self._label_list = list(label_set)
+        self._place_list = list(set(places))
+        self._silent_label = silent_label
+
+    def __getitem__(self, idx):
+        return (self.input_data[idx], self.label_data[idx], self._places[idx])
 
     @property
     def label_list(self):
         return self._label_list
 
-    def get_random_item(self, label: int = 0):
+    @property
+    def place_list(self):
+        return self._place_list
+
+    @property
+    def silent_label_idx(self):
+        if self._silent_label in self._label_list:
+            return self._label_list.index(self._silent_label)
+        else:
+            return -1
+
+    def get_random_item(self, label: int = 0, place: str = "loft"):
         """指定されたラベルのデータでランダムなものを返す
 
         Parameters
         ----------
         label : int, optional
-            [description], by default 0
+            ラベル, by default 0
+        place : str, optional
+            収録した場所, by default "loft"
 
         Returns
         -------
@@ -62,7 +84,7 @@ class AudioDataSet(DataSet):
         if label not in self._label_list:
             raise ValueError("Invalid value %s please specify among {%s}",
                              label, self._label_set)
-        index = random.choice(self._class_index[label])
+        index = random.choice(self._class_index[f"{label:02d}-{place}"])
         return self[index]
 
 
@@ -101,7 +123,8 @@ class ESNDataGenerator(object):
         return self
 
     def __next__(self) -> Tuple[np.array, np.array]:
-        """
+        """concatenate multiple audio samples to make training sample.
+
         Returns
         -------
         Tuple[np.array, np.array]
@@ -119,10 +142,12 @@ class ESNDataGenerator(object):
         self.iter_count += 1
         spectrograms = []
         label_seqs = []
+        selected_place = random.choice(self._dataset.place_list)
         for i in range(self.num_concat):
             random_label = random.choice(self.dataset.label_list)
-            spectrogram, label_seq = self.dataset.get_random_item(
-                label=random_label)  # (n_mels, n_frame), (n_frame)
+            spectrogram, label_seq, _ = self.dataset.get_random_item(
+                label=random_label,
+                place=selected_place)  # (n_mels, n_frame), (n_frame)
             assert spectrogram.shape[1] == label_seq.shape[
                 0], "The length of spectrogram and label_seq are different %s vs %s" % (
                     spectrogram.shape, label_seq.shape)
@@ -134,7 +159,7 @@ class ESNDataGenerator(object):
 
 
 def make_audio_dataset(
-    audio_data: List[Tuple[np.array, str]],
+    audio_data: List[Tuple[np.array, str, str]],
     converter: AudioConverter,
     n_classes: int = 3,
     data_mapping: Dict = dict()) -> AudioDataSet:
@@ -143,7 +168,7 @@ def make_audio_dataset(
         Parameters
         ----------
         audio_data : List[Tuple]
-            1 つ 1 つの要素は (audio:1d-array, label: str) となっている。
+            1 つ 1 つの要素は (audio:1d-array, label: str, place: str) となっている。
             入力となる音声信号データとそれにつけられたラベル('hi-hat','snare' など)
         converter : AudioConverter
             波形データをメルスペクトラムに変換する
@@ -157,8 +182,10 @@ def make_audio_dataset(
     """
     input_spectrograms = []
     label_seqs = []
+    places = []
     chunk = converter.chunk
-    for idx, (audio, label) in enumerate(audio_data):
+    for idx, (audio, label, place) in enumerate(audio_data):
+        places.append(place)
         n_frame = (len(audio) - 1) // chunk
         input_spectrogram_item = []
         label_seq = []
@@ -178,4 +205,4 @@ def make_audio_dataset(
         input_spectrograms.append(
             np.concatenate(input_spectrogram_item, axis=1))
         label_seqs.append(np.concatenate(label_seq, axis=0))
-    return AudioDataSet(input_spectrograms, label_seqs)
+    return AudioDataSet(input_spectrograms, label_seqs, places)
