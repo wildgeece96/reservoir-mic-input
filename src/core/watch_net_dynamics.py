@@ -29,8 +29,8 @@ parser.add_argument(
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = 8000  # サンプリングレート
-NUM_FRAME = 128
-SHOW_STATE_DIMENSIONS = 9  # 内部状態をプロットするノードの数
+NUM_FRAME = 64
+SHOW_STATE_DIMENSIONS = 12  # 内部状態をプロットするノードの数
 
 
 def softmax(x: np.ndarray):
@@ -72,7 +72,7 @@ if __name__ == '__main__':
         data = np.frombuffer(stream.read(chunk_size,
                                          exception_on_overflow=False),
                              dtype=np.int16).astype(np.float32)
-        data_mel = audio_converter.convert_to_mel(data)
+        data_mel = audio_converter.convert_to_mel(data)  # (n_mels, n_frame)
         datas_mel.append(data_mel)
         minibatch_state_record = []
         for i in range(audio_converter.n_frame):
@@ -86,17 +86,17 @@ if __name__ == '__main__':
         if cnt > NUM_FRAME and cnt % 2 == 0:
             datas_mel = datas_mel[-NUM_FRAME:]
             audio_ax.set_title(f"{cnt/RATE*chunk_size:.3f} (sec)")
-            picture.set_data(np.concatenate(datas_mel, axis=1).T[::-1])
+            picture.set_data(np.concatenate(datas_mel,
+                                            axis=1)[::-1])  # (n_frame, n_mels)
             net_picture.set_data(net.x)
             for node_idx, state_graph in enumerate(state_graphs):
                 state_graph.set_data(np.arange(NUM_FRAME),
                                      net_state_record[node_idx, :])
-            pred_probas = net.decoder.predict(net_state_record.T)
-            pred_probas = softmax(pred_probas)
-            preds_picture.set_data(pred_probas.T)
-            print("preds :", pred_probas[:5, :])
+            preds = net.decoder.predict(net_state_record.T).astype(int)
+            preds_one_hot = np.identity(3)[preds]
+            preds_picture.set_data(preds_one_hot.T)
+            print("preds :", preds_one_hot[:5, :])
             print("spectrogram :", data_mel[:5, :5])
             plt.pause(0.001)
         cnt += 1
         print("cnt = ", cnt, end='\r')
-        print("max audio = ", audio_converter.scale)

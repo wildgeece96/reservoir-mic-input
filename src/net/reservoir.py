@@ -5,6 +5,7 @@ import numpy as np
 import joblib
 import sklearn
 from sklearn.linear_model import Ridge
+from sklearn.linear_model import LogisticRegression
 
 
 class ESN_2D(object):
@@ -34,7 +35,7 @@ class ESN_2D(object):
         output_dim : int, optional
             ネットワークの出力次元数, by default 4
         alpha : float, optional
-            直前の state を持つ割合, input の scale は 1 - slpha となる, by default 0.8
+            直前の state を持つ割合, input の scale は 1 - alpha となる, by default 0.8
         input_offset : float, optional
             音声が全て負の値のため、固定値としてどれぐらい足すかを指定する
         sparse_rate : float, optional 
@@ -55,8 +56,8 @@ class ESN_2D(object):
         self.sparse_rate = sparse_rate
         self._x = np.random.randn(width * height).astype(dtype)
 
-        self.w_inter = np.random.randn(width * height,
-                                       width * height) / self.scale
+        self.w_inter = (np.random.rand(width * height, width * height) -
+                        0.5) / self.scale * 2.0
         self.w_inter.astype(dtype)
         self._adjust_w_inter_params(height, width)
         self._make_w_inter_sparse()
@@ -67,8 +68,6 @@ class ESN_2D(object):
         self.w_in = np.random.randn(input_dim,
                                     width * height) / self.scale * 2.0
         # mask the input weight
-        self.w_in *= np.where(
-            np.random.rand(input_dim, height * width) < 0.8, 0, 1.0)
         self.w_in.astype(dtype)
 
         # 活性化関数
