@@ -160,7 +160,7 @@ def export_sal_trained_reservoir(reservoir: SALReservoir, w_in: np.array,
         "input_dim": input_dim,
         "output_dim": output_dim,
         "leaky_rate": leaky_rate,
-        "dtype": config["dtype"],
+        "dtype": dtype_name,
         "input_offset": input_offset,
         "input_scale": input_scale,
     }

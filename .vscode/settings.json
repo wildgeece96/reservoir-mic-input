@@ -4,4 +4,6 @@
         "./"
     ],
     "python.linting.pylintEnabled": true,
+    "editor.formatOnSave": true,
+    "python.formatting.provider": "yapf"
 }
