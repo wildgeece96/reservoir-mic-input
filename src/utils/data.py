@@ -1,3 +1,7 @@
+import glob
+import json
+import librosa
+import os
 from typing import List
 from typing import Any
 from typing import Tuple
@@ -105,7 +109,7 @@ class ESNDataGenerator(object):
         self._dataset = dataset
         self.iter_count = 0
         self._epochs = epochs
-        self.max_iter_count = self._epochs * len(self)
+        self.max_iter_count = self._epochs * len(self) // num_concat
         self._num_concat = num_concat
 
     @property
@@ -143,6 +147,7 @@ class ESNDataGenerator(object):
         spectrograms = []
         label_seqs = []
         selected_place = random.choice(self._dataset.place_list)
+        # TODO: #8 ドラムやハイハット、スネアのシーケンスを実際のものに近くなるような確率モデルでサンプリングしたい(HMM?)
         for i in range(self.num_concat):
             random_label = random.choice(self.dataset.label_list)
             spectrogram, label_seq, _ = self.dataset.get_random_item(
@@ -206,3 +211,83 @@ def make_audio_dataset(
             np.concatenate(input_spectrogram_item, axis=1))
         label_seqs.append(np.concatenate(label_seq, axis=0))
     return AudioDataSet(input_spectrograms, label_seqs, places)
+
+
+def _load_wav_files(audio_paths, sample_rate, classes):
+    audio_data = []
+    for path in audio_paths:
+        audio, sr = librosa.load(path, sr=sample_rate)
+        place, audio_type = path.split("/")[-1].split("_")[:2]
+        if audio_type not in classes.keys():
+            continue
+        audio_data.append((audio, audio_type, place))
+    return audio_data
+
+
+def load_audio_data(
+    data_dir: str = "./data/cripped_wav",
+    file_list_path: str = None,
+    valid_ratio: float = 0.2,
+    classes: Dict[str, int] = {
+        "bass": 0,
+        "hi-hat": 1
+    },
+    sample_rate: int = 8000,
+    save_file_dir: str = "../out/trained_model"
+) -> Dict[str, List[Tuple[np.array, str, str]]]:
+    """wav ファイルを読み込む. すでに train と valid が分けられているならその結果を
+    file_list として読み込む
+
+    Parameters
+    ----------
+    data_dir : str, optional
+        wavファイルが格納されているディレクトリ, by default "./data/cripped_wav"
+    file_list_path : str, optional
+        学習データと評価データとなる音声ファイル一覧が入っているjson ファイル, by default None
+    valid_ratio : float, optional
+        データを分けるときの評価データの割合, by default 0.2
+    classes : Dict[str, int], optional
+        [description], by default { "bass": 0, "hi-hat": 1 }
+    sample_rate : int, optional
+        [description], by default 8000
+
+
+    Returns
+    -------
+    Dict[str, List[Tuple[np.array, str, str]]]
+        "train", "valid" を key としたデータ一覧。
+            読み込まれた波形データと、それに付随するラベル
+            (波形データ, 音声の種類, 音声の収録場所) の順に並んでいる
+    """
+    if not file_list_path:
+        glob_expression = os.path.join(data_dir, "*.wav")
+        audio_paths = glob.glob(glob_expression)
+        audio_data = _load_wav_files(audio_paths, sample_rate, classes)
+
+        num_data = len(audio_data)
+        shuffled_idx = np.random.permutation(num_data)
+        num_valid = int(num_data * valid_ratio)
+        valid_idxes = shuffled_idx[:num_valid]
+        train_idxes = shuffled_idx[num_valid:]
+
+        valid_data = [audio_data[idx] for idx in valid_idxes]
+        train_data = [audio_data[idx] for idx in train_idxes]
+
+        valid_files = [audio_paths[idx] for idx in valid_idxes]
+        train_files = [audio_paths[idx] for idx in train_idxes]
+        file_list = {"valid": valid_files, "train": train_files}
+    else:
+        with open(file_list_path, "r") as f:
+            file_list = json.load(f)
+        valid_files = file_list["valid"]
+        train_files = file_list["train"]
+
+        valid_data = _load_wav_files(valid_files, sample_rate, classes)
+        train_data = _load_wav_files(train_files, sample_rate, classes)
+
+    if save_file_dir:
+        save_file_path = os.path.join(save_file_dir, "file_list.json")
+        with open(save_file_path, "w") as f:
+            json_string = json.dumps(file_list, indent=4)
+            f.write(json_string)
+    return {"train": train_data, "valid": valid_data}

@@ -19,6 +19,7 @@ import librosa
 from src.audio_process import AudioConverter
 from src.net.reservoir import ESN_2D
 from src.utils import make_audio_dataset
+from src.utils import load_audio_data
 from src.utils import ESNDataGenerator
 
 parser = argparse.ArgumentParser()
@@ -52,7 +53,7 @@ parser.add_argument(
     "--chunk",
     type=int,
     default=2**6,
-    help="The size of chunk which equals the window size in a spectrogram.")
+    help="The size of chunk which equals to the window size at spectrograms.")
 parser.add_argument("--n-fft",
                     type=int,
                     default=128,
@@ -119,7 +120,7 @@ if __name__ == "__main__":
     N_MELS = args.n_mels
     OVERLAP_RATE = 0.0
 
-    CLASSES = {"bass": 0, "hi-hat": 1, "snare": 2, "k-snare": 2, "silent": 3}
+    CLASSES = {"bass": 0, "hi-hat": 1, "snare": 2, "k-snare": 3, "silent": 4}
     N_CLASSES = len(CLASSES)
 
     network_config = {
@@ -140,32 +141,19 @@ if __name__ == "__main__":
     network = ESN_2D(**network_config)
 
     # 訓練データの準備
-    audio_paths = glob.glob("./data/cripped_wav/*.wav")
-    audio_data = []
-    for path in audio_paths:
-        audio, sr = librosa.load(path, sr=RATE)
-        place, audio_type = path.split("/")[-1].split("_")[:2]
-        audio_data.append((audio, audio_type, place))
-
-    valid_ratio = 0.2
-    num_data = len(audio_data)
     np.random.seed(31)
-    shuffled_idx = np.random.permutation(num_data)
+    datas = load_audio_data(data_dir="./data/cripped_wav",
+                            valid_ratio=0.2,
+                            classes=CLASSES)
 
-    num_valid = int(num_data * valid_ratio)
-    valid_idxes = shuffled_idx[:num_valid]
-    train_idxes = shuffled_idx[num_valid:]
-
-    train_dataset = make_audio_dataset(
-        [audio_data[idx] for idx in train_idxes],
-        converter,
-        N_CLASSES,
-        data_mapping=CLASSES)
-    valid_dataset = make_audio_dataset(
-        [audio_data[idx] for idx in valid_idxes],
-        converter,
-        N_CLASSES,
-        data_mapping=CLASSES)
+    train_dataset = make_audio_dataset(datas["train"],
+                                       converter,
+                                       N_CLASSES,
+                                       data_mapping=CLASSES)
+    valid_dataset = make_audio_dataset(datas["valid"],
+                                       converter,
+                                       N_CLASSES,
+                                       data_mapping=CLASSES)
 
     train_dataloader = ESNDataGenerator(train_dataset,
                                         epochs=args.train_epochs,
