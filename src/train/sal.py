@@ -3,6 +3,7 @@
 import os
 import argparse
 import glob
+import json
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import List
@@ -32,7 +33,7 @@ def get_args():
         default=0.99,
         help=
         "Rate of previous time step to calculate moving average sensitivity.")
-    parser.add_argument("--leaky_rate",
+    parser.add_argument("--leaky-rate",
                         type=float,
                         default=0.90,
                         help="The leaky rate of Reservoir.")
@@ -231,8 +232,9 @@ if __name__ == "__main__":
                                        data_mapping=RAW_CLASSES)
 
     train_dataloader = ESNDataGenerator(train_dataset,
-                                        epochs=1,
-                                        num_concat=args.num_concat)
+                                        epochs=5,
+                                        num_concat=args.num_concat,
+                                        class_weights=[5.0, 5.0, 5.0, 1.0])
     valid_dataloader = ESNDataGenerator(valid_dataset, epochs=1, num_concat=1)
 
     # リザバーネットワークの用意
@@ -261,7 +263,7 @@ if __name__ == "__main__":
     parameters = []
     for layer in res.layers:
         parameters += layer.parameters()
-    optimizer = SGD(parameters, lr=0.5, weight_decay=0.001)
+    optimizer = SGD(parameters, lr=0.1, weight_decay=0.001)
     num_epochs = 1000
     state_list = []
     for epoch in range(num_epochs):
@@ -306,3 +308,6 @@ if __name__ == "__main__":
                                  w_in,
                                  config=config,
                                  dir_path=args.output_dir)
+    with open(os.path.join(args.output_dir, "sal_meta.json"), "w") as f:
+        json_string = json.dumps(vars(args), indent=4)
+        f.write(json_string)
