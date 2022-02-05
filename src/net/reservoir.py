@@ -286,7 +286,7 @@ class Reservoir(object):
         states = []
         for i, layer in enumerate(self.layers):
             _x = layer(x)
-            x = self.leaky_rate * prev_states[i] + (1 - self.leaky_rate) * x
+            x = self.leaky_rate * prev_states[i] + (1 - self.leaky_rate) * _x
             states.append(x)
         return (x, states)
 
@@ -394,9 +394,9 @@ class ESN(object):
         self.reservoir = Reservoir(dims=reservoir_dims, leaky_rate=leaky_rate)
         self._states = self.reservoir.generate_init_state()
 
-    def __call__(self, u, return_preds=False):
+    def __call__(self, x, u, return_preds=False):
         """Update state."""
-        return self.step(u, return_preds)
+        return self.step(x, u, return_preds)
 
     def step(self,
              x: np.array,

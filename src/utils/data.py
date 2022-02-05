@@ -94,7 +94,11 @@ class AudioDataSet(DataSet):
 
 class ESNDataGenerator(object):
     """ESN を学習させるためのデータセットを生成するクラス. PyTorch ライクに使う"""
-    def __init__(self, dataset: AudioDataSet, epochs: int, num_concat: int):
+    def __init__(self,
+                 dataset: AudioDataSet,
+                 epochs: int,
+                 num_concat: int,
+                 class_weights: List[float] = None):
         """初期化関数
 
         Parameters
@@ -111,6 +115,10 @@ class ESNDataGenerator(object):
         self._epochs = epochs
         self.max_iter_count = self._epochs * len(self) // num_concat
         self._num_concat = num_concat
+        if class_weights:
+            self.class_weights = class_weights
+        else:
+            self.class_weights = [1.0] * len(dataset.label_list)
 
     @property
     def dataset(self):
@@ -148,8 +156,11 @@ class ESNDataGenerator(object):
         label_seqs = []
         selected_place = random.choice(self._dataset.place_list)
         # TODO: #8 ドラムやハイハット、スネアのシーケンスを実際のものに近くなるような確率モデルでサンプリングしたい(HMM?)
+        random_labels = random.choices(self.dataset.label_list,
+                                       weights=self.class_weights,
+                                       k=self.num_concat)
         for i in range(self.num_concat):
-            random_label = random.choice(self.dataset.label_list)
+            random_label = random_labels[i]
             spectrogram, label_seq, _ = self.dataset.get_random_item(
                 label=random_label,
                 place=selected_place)  # (n_mels, n_frame), (n_frame)
