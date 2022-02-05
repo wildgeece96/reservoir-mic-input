@@ -8,7 +8,7 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 
 from src.get_audio import get_stream
-from src.net.reservoir import ESN_2D
+from src.net import ESN_2D
 from src.audio_process.process import AudioConverter
 from src import utils
 
@@ -31,6 +31,7 @@ CHANNELS = 1
 RATE = 8000  # サンプリングレート
 NUM_FRAME = 64
 SHOW_STATE_DIMENSIONS = 12  # 内部状態をプロットするノードの数
+CLASSES = {"bass": 0, "hi-hat": 1, "snare": 2, "k-snare": 3, "silent": 4}
 
 
 def softmax(x: np.ndarray):
@@ -63,7 +64,7 @@ if __name__ == '__main__':
         num_frame=NUM_FRAME,
         mel_freqs=mel_freqs,
         state_dimensions=SHOW_STATE_DIMENSIONS,
-        classes=["bass", "hi-hat", "snare"])
+        classes=list(CLASSES.keys()))
     net_state_record = np.zeros([net.height * net.width,
                                  NUM_FRAME])  # 最初にゼロ埋めされているネットワークのレコードを作成
 
@@ -93,7 +94,7 @@ if __name__ == '__main__':
                 state_graph.set_data(np.arange(NUM_FRAME),
                                      net_state_record[node_idx, :])
             preds = net.decoder.predict(net_state_record.T).astype(int)
-            preds_one_hot = np.identity(3)[preds]
+            preds_one_hot = np.identity(len(CLASSES.keys()))[preds]
             preds_picture.set_data(preds_one_hot.T)
             print("preds :", preds_one_hot[:5, :])
             print("spectrogram :", data_mel[:5, :5])
