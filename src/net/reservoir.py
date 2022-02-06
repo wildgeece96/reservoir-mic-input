@@ -65,7 +65,7 @@ class ESN_2D(object):
         self._adjust_w_inter_params(height, width)
         self._make_w_inter_sparse()
         # echo state property を持たせるための重み調整
-        self.w_inter /= np.linalg.norm(self.w_inter)
+        self.w_inter /= np.linalg.eig(self.w_inter)[0].max()
         self.w_inter *= 0.99
 
         self.w_in = np.random.randn(input_dim,
@@ -202,8 +202,12 @@ class ReservoirLayer(object):
                  input_dim: int = 100,
                  output_dim: int = 100,
                  act_func: str = "tanh"):
-        self.w = np.random.rand(output_dim, input_dim)
-        self.bias = np.random.rand(output_dim)
+        w = (np.random.rand(output_dim, input_dim) - 0.5) / (output_dim *
+                                                             input_dim / 2.0)
+        # 入力と出力の次元が同じ時のみ、スペクトル半径の調整を行う
+        if input_dim == output_dim:
+            w = w / np.linalg.eig(w)[0].max() * 0.99
+        self.bias = np.random.zeros(output_dim)
         self.act_func_str = act_func
         if act_func == "tanh":
             self.act_func = np.tanh
