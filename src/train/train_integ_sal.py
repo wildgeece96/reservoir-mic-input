@@ -1,32 +1,40 @@
+"""SAL をしたリザバーを持った ESN のデコーダー部分の学習"""
 import warnings
 
 warnings.simplefilter('ignore')
 
-import os
 import argparse
-import logging
-from typing import Tuple, List
-from collections import defaultdict
-import json
-import numpy as np
 import glob
-import matplotlib.pyplot as plt
-from sklearn.linear_model import Ridge
-from sklearn.linear_model import LogisticRegression
+import json
+import logging
+import os
+import subprocess
+from collections import defaultdict
+from datetime import datetime
+from typing import List, Tuple
 
 import librosa
-
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from sklearn.linear_model import LogisticRegression, Ridge
 from src.audio_process import AudioConverter
 from src.net.reservoir import ESN
-from src.utils import make_audio_dataset
-from src.utils import load_audio_data
-from src.utils import ESNDataGenerator
+from src.train import sal
+from src.utils import (ESNDataGenerator, SALConfigManager, load_audio_data,
+                       make_audio_dataset)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--dims",
                     type=str,
-                    default="20,10,20",
+                    default="20,20,20",
                     help="The list of dimensions for Reservoir")
+parser.add_argument(
+    "--beta",
+    type=float,
+    default=0.99,
+    help=
+    "[SAL only] The scale of moving average to calculate Sensitivity score.")
 parser.add_argument("--leaky-rate",
                     type=float,
                     default=0.70,
@@ -65,7 +73,13 @@ parser.add_argument("--train-epochs",
                     default=3,
                     help="The epoch size for training network.")
 parser.add_argument(
-    "--train-num-concat",
+    "--train-sal",
+    action="store_true",
+    help=
+    "Whether or not to train SAL model if there's no pretrained net with the same condition."
+)
+parser.add_argument(
+    "--num-concat",
     type=int,
     default=5,
     help="The number of samples per input spectrogram during training.")
@@ -80,6 +94,9 @@ parser.add_argument("--save-model-path",
                     type=str,
                     default="../out/trained_model",
                     help="The directory path to save trained model")
+parser.add_argument("--configs-path",
+                    type=str,
+                    default="../out/sal/configs.csv")
 parser.add_argument(
     "--score-path",
     type=str,
@@ -87,6 +104,10 @@ parser.add_argument(
     help=
     "The json path which has maximum score during hyperparameter optimization."
 )
+parser.add_argument("--scores-path",
+                    type=str,
+                    default="../out/scores.csv",
+                    help="The path to the scores.")
 
 
 def validate_model(model, input_state, label_seq):
@@ -116,6 +137,14 @@ def generate_states(network, dataloader):
 
 if __name__ == "__main__":
     args = parser.parse_args()
+
+    ## start SAL handling ##
+    # SAL での事前学習に関するハンドリング
+    # 指定されたモデルがあれば、その値で config を上書き、それ以外は同様の config があれば
+    # そのモデルを読み込むようにする。なければ SAL の pretrain を実施する
+    config_manager = SALConfigManager(args.configs_path)
+    if not args.pretrained_model:
+        args.pretrained_model = config_manager.search_config(vars(args))
     if args.pretrained_model:
         meta_json_path = os.path.join(args.pretrained_model, "sal_meta.json")
         with open(meta_json_path, "r") as f:
@@ -131,6 +160,22 @@ if __name__ == "__main__":
         print(
             f"Loaded pretraining configuration\n {json.dumps(prev_args, indent=4)}"
         )
+    elif args.train_sal:
+        # SAL で学習させてそのモデルを読み込む
+        save_path = os.path.join("../out/sal_models/",
+                                 datetime.now().strftime("%Y%m%d-%H%M"))
+        commands = [
+            "python", "src/train/sal.py", "--dims", args.dims, "--beta",
+            args.beta, "--leaky-rate", args.leaky_rate, "--sample-rate",
+            args.sample_rate, "--n-mels", args.n_mels, "--chunk", args.chunk,
+            "--input-scale", args.input_scale, "--input-offset",
+            args.input_offset, "--num-concat", args.num_concat,
+            "--configs-path", args.configs_path, "--save-path", save_path
+        ]
+        subprocess.call(list(map(str, commands)))
+        args.pretrained_model = save_path
+    ## end SAL handling ##
+
     if args.save_model_path:
         os.makedirs(args.save_model_path, exist_ok=True)
     CHANNELS = 1
@@ -190,7 +235,7 @@ if __name__ == "__main__":
 
     train_dataloader = ESNDataGenerator(train_dataset,
                                         epochs=args.train_epochs,
-                                        num_concat=args.train_num_concat,
+                                        num_concat=args.num_concat,
                                         class_weights=[5.0, 5.0, 5.0, 1.0])
     valid_dataloader = ESNDataGenerator(valid_dataset, epochs=3, num_concat=5)
 
@@ -218,6 +263,16 @@ if __name__ == "__main__":
         prev_score = scores["valid_score"]
     else:
         prev_score = -0.1
+    # TODO: score を csv 形式で保存できるようにする
+    if os.path.exists(args.scores_path):
+        score_df = pd.read_csv(args.scores_path)
+    else:
+        score_df = pd.DataFrame(columns=list(vars(args).keys()))
+    record = vars(args)
+    record["valid_score"] = valid_score
+    record["train_score"] = train_score
+    score_df = score_df.append(record, ignore_index=True)
+    score_df.to_csv(args.scores_path, index=None)
     if args.save_model and prev_score < valid_score:
         network.save(args.save_model_path)
         with open(args.score_path, "w") as f:

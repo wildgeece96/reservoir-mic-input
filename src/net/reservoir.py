@@ -1,14 +1,12 @@
 """リザバー部分(ESN)を実装するためのモジュールを定義する"""
-import os
 import json
-from typing import Dict
-from typing import Tuple
-from typing import List
-import numpy as np
+import os
+from typing import Dict, List, Tuple
+
 import joblib
+import numpy as np
 import sklearn
-from sklearn.linear_model import Ridge
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LogisticRegression, Ridge
 
 
 class ESN_2D(object):
@@ -207,7 +205,7 @@ class ReservoirLayer(object):
         # 入力と出力の次元が同じ時のみ、スペクトル半径の調整を行う
         if input_dim == output_dim:
             w = w / np.linalg.eig(w)[0].max() * 0.99
-        self.bias = np.random.zeros(output_dim)
+        self.bias = np.zeros(output_dim)
         self.act_func_str = act_func
         if act_func == "tanh":
             self.act_func = np.tanh

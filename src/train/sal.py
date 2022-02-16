@@ -1,31 +1,27 @@
 """SAL(Sensitivity adjustment learning)を実装する場所. 
 リザバー部分にカオス性を持たせる目的で事前学習的に行う"""
-import os
 import argparse
 import glob
 import json
-import numpy as np
+import os
+from typing import Dict, List
+
 import matplotlib.pyplot as plt
-from typing import List
-from typing import Dict
-
+import numpy as np
 import torch
-from torch.optim import SGD
-from torch.autograd import Variable
-
 from src.audio_process import AudioConverter
-from src.net import SALReservoir
-from src.net import export_sal_trained_reservoir
-from src.utils import make_audio_dataset
-from src.utils import load_audio_data
-from src.utils import ESNDataGenerator
+from src.net import SALReservoir, export_sal_trained_reservoir
+from src.utils import (ESNDataGenerator, SALConfigManager, load_audio_data,
+                       make_audio_dataset)
+from torch.autograd import Variable
+from torch.optim import SGD
 
 
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dims",
                         type=str,
-                        default="20,10,20",
+                        default="20,20,20",
                         help="The list of dimensions for Reservoir")
     parser.add_argument(
         "--beta",
@@ -37,7 +33,7 @@ def get_args():
                         type=float,
                         default=0.90,
                         help="The leaky rate of Reservoir.")
-    parser.add_argument("--output-dir",
+    parser.add_argument("--save-path",
                         type=str,
                         default="../out/sal_models",
                         help="The directory path to save trained SAL model")
@@ -72,11 +68,15 @@ def get_args():
         type=int,
         default=5,
         help="The number of samples concatenated at one sample at training.")
+    parser.add_argument("--configs-path",
+                        type=str,
+                        default="../out/sal/configs.csv")
     return parser.parse_args()
 
 
 def check_chaoticity(res: SALReservoir,
                      dataloader: ESNDataGenerator,
+                     w_in: np.array,
                      fig_dir: str = "../out/sal_models/fig/",
                      fig_prefix: str = "before",
                      mel_freqs: List[float] = [0.0, 1.0, 2.0],
@@ -207,11 +207,12 @@ def check_chaoticity(res: SALReservoir,
 RAW_CLASSES = {"bass": 0, "hi-hat": 1, "snare": 2, "k-snare": 2, "silent": 3}
 CLASSES = {"bass": 0, "hi-hat": 1, "snare": 2, "silent": 3}
 N_CLASSES = len(CLASSES)
-if __name__ == "__main__":
-    args = get_args()
-    os.makedirs(args.output_dir, exist_ok=True)
-    dims = list(map(int, args.dims.split(",")))
 
+
+def main(args):
+    os.makedirs(args.save_path, exist_ok=True)
+    dims = list(map(int, args.dims.split(",")))
+    config_manager = SALConfigManager(args.configs_path)
     # 学習データの準備(音声の読み込み)
     converter = AudioConverter(chunk_size=args.chunk,
                                n_fft=args.n_fft,
@@ -220,7 +221,7 @@ if __name__ == "__main__":
     np.random.seed(31)
     datas = load_audio_data(data_dir="./data/cripped_wav",
                             valid_ratio=0.2,
-                            save_file_dir=args.output_dir,
+                            save_file_dir=args.save_path,
                             classes=RAW_CLASSES)
     train_dataset = make_audio_dataset(datas["train"],
                                        converter,
@@ -251,7 +252,8 @@ if __name__ == "__main__":
     print("Visualising chaoticity before training....")
     check_chaoticity(res,
                      train_dataloader,
-                     fig_dir=os.path.join(args.output_dir, "fig"),
+                     w_in,
+                     fig_dir=os.path.join(args.save_path, "fig"),
                      fig_prefix="before",
                      mel_freqs=converter.mel_freqs,
                      classes=CLASSES,
@@ -291,10 +293,12 @@ if __name__ == "__main__":
     # 学習後の状態での内部状態のプロット
     check_chaoticity(res,
                      train_dataloader,
-                     fig_dir=os.path.join(args.output_dir, "fig"),
+                     w_in,
+                     fig_dir=os.path.join(args.save_path, "fig"),
                      fig_prefix="after",
                      mel_freqs=converter.mel_freqs,
-                     classes=CLASSES)
+                     classes=CLASSES,
+                     input_offset=args.input_offset)
 
     # 学習させたリザバーの export
     print("Saving trained reservoir...")
@@ -307,7 +311,13 @@ if __name__ == "__main__":
     export_sal_trained_reservoir(res,
                                  w_in,
                                  config=config,
-                                 dir_path=args.output_dir)
-    with open(os.path.join(args.output_dir, "sal_meta.json"), "w") as f:
+                                 dir_path=args.save_path)
+    with open(os.path.join(args.save_path, "sal_meta.json"), "w") as f:
         json_string = json.dumps(vars(args), indent=4)
         f.write(json_string)
+    config_manager.add_config(vars(args))
+
+
+if __name__ == "__main__":
+    args = get_args()
+    main(args)

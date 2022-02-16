@@ -4,3 +4,4 @@ scipy
 matplotlib
 librosa
 torch
+pandas
