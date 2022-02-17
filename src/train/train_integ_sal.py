@@ -192,7 +192,12 @@ if __name__ == "__main__":
         "silent": 3
     }
     CLASSES = {"bass": 0, "hi-hat": 1, "snare": 2, "silent": 3}
-
+    WEIGHTS = [
+        [0.2, 1.0, 0.2, 0.05],  # bass から続く音の割合
+        [1.0, 0.2, 1.0, 0.05],  # hi-hat から続く音の割合
+        [0.2, 1.0, 0.1, 0.05],  # snare から続く音の割合
+        [1.0, 0.2, 0.2, 0.0]  # silent から続く音の割合
+    ]
     N_CLASSES = len(CLASSES)
 
     network_config = {
@@ -236,8 +241,11 @@ if __name__ == "__main__":
     train_dataloader = ESNDataGenerator(train_dataset,
                                         epochs=args.train_epochs,
                                         num_concat=args.num_concat,
-                                        class_weights=[5.0, 5.0, 5.0, 1.0])
-    valid_dataloader = ESNDataGenerator(valid_dataset, epochs=3, num_concat=5)
+                                        class_weights=WEIGHTS)
+    valid_dataloader = ESNDataGenerator(valid_dataset,
+                                        epochs=3,
+                                        num_concat=5,
+                                        class_weights=WEIGHTS)
 
     train_state, train_label_seq = generate_states(network, train_dataloader)
     valid_state, valid_label_seq = generate_states(network, valid_dataloader)
