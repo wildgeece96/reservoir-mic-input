@@ -207,6 +207,12 @@ def check_chaoticity(res: SALReservoir,
 RAW_CLASSES = {"bass": 0, "hi-hat": 1, "snare": 2, "k-snare": 2, "silent": 3}
 CLASSES = {"bass": 0, "hi-hat": 1, "snare": 2, "silent": 3}
 N_CLASSES = len(CLASSES)
+WEIGHTS = [
+    [0.2, 1.0, 0.2, 0.05],  # bass から続く音の割合
+    [1.0, 0.2, 1.0, 0.05],  # hi-hat から続く音の割合
+    [0.2, 1.0, 0.1, 0.05],  # snare から続く音の割合
+    [1.0, 0.2, 0.2, 0.0]  # silent から続く音の割合
+]
 
 
 def main(args):
@@ -235,7 +241,7 @@ def main(args):
     train_dataloader = ESNDataGenerator(train_dataset,
                                         epochs=5,
                                         num_concat=args.num_concat,
-                                        class_weights=[5.0, 5.0, 5.0, 1.0])
+                                        class_weights=WEIGHTS)
     valid_dataloader = ESNDataGenerator(valid_dataset, epochs=1, num_concat=1)
 
     # リザバーネットワークの用意
@@ -266,7 +272,7 @@ def main(args):
     for layer in res.layers:
         parameters += layer.parameters()
     optimizer = SGD(parameters, lr=0.1, weight_decay=0.001)
-    num_epochs = 1000
+    num_epochs = 250
     state_list = []
     for epoch in range(num_epochs):
         epoch_s_list = []

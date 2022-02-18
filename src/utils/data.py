@@ -1,15 +1,12 @@
 import glob
 import json
-import librosa
 import os
-from typing import List
-from typing import Any
-from typing import Tuple
-from typing import Dict
-from collections import defaultdict
-import numpy as np
 import random
+from collections import defaultdict
+from typing import Any, Dict, List, Tuple
 
+import librosa
+import numpy as np
 from src.audio_process import AudioConverter
 
 
@@ -118,7 +115,8 @@ class ESNDataGenerator(object):
         if class_weights:
             self.class_weights = class_weights
         else:
-            self.class_weights = [1.0] * len(dataset.label_list)
+            self.class_weights = [[1.0] * len(dataset.label_list)
+                                  for _ in range(len(dataset.label_list))]
 
     @property
     def dataset(self):
@@ -156,9 +154,17 @@ class ESNDataGenerator(object):
         label_seqs = []
         selected_place = random.choice(self._dataset.place_list)
         # TODO: #8 ドラムやハイハット、スネアのシーケンスを実際のものに近くなるような確率モデルでサンプリングしたい(HMM?)
-        random_labels = random.choices(self.dataset.label_list,
-                                       weights=self.class_weights,
-                                       k=self.num_concat)
+        random_labels = []
+        for i in range(self.num_concat):
+            if i == 0:
+                random_labels.append(
+                    random.choices(self.dataset.label_list, k=1)[0])
+            else:
+                weights = self.class_weights[random_labels[-1]]
+                random_labels.append(
+                    random.choices(self.dataset.label_list,
+                                   weights=weights,
+                                   k=1)[0])
         for i in range(self.num_concat):
             random_label = random_labels[i]
             spectrogram, label_seq, _ = self.dataset.get_random_item(
