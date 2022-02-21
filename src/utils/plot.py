@@ -1,8 +1,8 @@
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 from typing import List
 
+import matplotlib.gridspec as gridspec
+import matplotlib.pyplot as plt
+import numpy as np
 from src.net.reservoir import ESN_2D
 
 
@@ -46,16 +46,16 @@ def generate_realtime_plot(net: ESN_2D, n_mels: int, num_frame: int,
 
     ## ネットワーク活性化状況可視化部分の初期設定
     net_ax = fig.add_subplot(gs[:2, 1])
-    zero_net = np.zeros([net.height, net.width])
-    zero_net[:, 0] = 1.0
-    zero_net[:, 1] = -1.0
-    net_picture = net_ax.imshow(zero_net)
+    zero_net = np.zeros([net.reservoir_dims[0]])
+    zero_net[0] = 1.0
+    zero_net[1] = -1.0
+    net_picture = net_ax.imshow(zero_net.reshape(5, -1))
     fig.colorbar(net_picture, ax=net_ax)
     net_ax.set_aspect(1.0)
 
     ## ネットワークのニューロンの状態遷移可視化部分の初期設定
     state_ax = fig.add_subplot(gs[2, :2])
-    zero_state = np.zeros([net.height * net.width, num_frame])
+    zero_state = np.zeros([net.reservoir_dims[0], num_frame])
     state_graphs = []
     for node_idx in range(state_dimensions):
         state_graph, = state_ax.plot(zero_state[node_idx, :])
