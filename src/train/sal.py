@@ -102,6 +102,9 @@ def check_chaoticity(res: SALReservoir,
     aspect_ratio = 0.20
     fontsize = 20
     for (spectrogram, label_seq) in dataloader:
+        cnt += 1
+        if cnt > 5:
+            break
         x = torch.Tensor(np.random.rand(res.dims[0]).astype(np.float32) - 0.5)
         x02 = x.clone()
         s_bar = 0
@@ -272,7 +275,7 @@ def main(args):
     for layer in res.layers:
         parameters += layer.parameters()
     optimizer = SGD(parameters, lr=0.1, weight_decay=0.001)
-    num_epochs = 250
+    num_epochs = 1000
     state_list = []
     for epoch in range(num_epochs):
         epoch_s_list = []
